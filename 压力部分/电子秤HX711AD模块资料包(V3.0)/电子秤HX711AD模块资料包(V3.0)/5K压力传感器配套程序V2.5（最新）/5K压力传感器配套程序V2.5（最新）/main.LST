@@ -1,0 +1,277 @@
+C51 COMPILER V9.00   MAIN                                                                  10/14/2013 10:38:54 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include "main.h"
+   2          #include "LCD1602.h"
+   3          #include "HX711.h"
+   4          
+   5          unsigned long HX711_Buffer = 0;
+   6          unsigned long Weight_Maopi = 0,Weight_Shiwu = 0;
+   7          char Price_Count = 0;
+   8          unsigned char KEY_NUM = 0;
+   9          unsigned char Price_Buffer[3] = {0x00,0x00,0x00};
+  10          unsigned long Money = 0;
+  11          bit Flag_OK = 0;
+  12          
+  13          //****************************************************
+  14          //主函数
+  15          //****************************************************
+  16          void main()
+  17          {
+  18   1              Init_LCD1602();                                                                 //初始化LCD1602
+  19   1      
+  20   1              LCD1602_write_com(0x80);                                                //指针设置
+  21   1              LCD1602_write_word("Welcome to use! ");                 //开机画面第一行
+  22   1      
+  23   1      
+  24   1              Delay_ms(2000);          //延时2s
+  25   1      
+  26   1      
+  27   1      loop:Price_Count = 0;
+  28   1              Price_Buffer[0] = 0;
+  29   1              Price_Buffer[1] = 0;
+  30   1              Price_Buffer[2] = 0;
+  31   1              Flag_OK = 0;
+  32   1      
+  33   1              LCD1602_write_com(0x80);                                                //指针设置
+  34   1              LCD1602_write_word("+WEI |PRI | MON ");
+  35   1              LCD1602_write_com(0x80+0x40);                           //指针设置
+  36   1              LCD1602_write_word("0.000|  . |   . ");
+  37   1      
+  38   1              
+  39   1      
+  40   1              
+  41   1              Get_Maopi();                            //称毛皮重量
+  42   1      
+  43   1              while(1)
+  44   1              {
+  45   2                      if( Flag_OK == 0)
+  46   2                      {
+  47   3                              Get_Weight();                   //称重
+  48   3              
+  49   3                              //显示当前重量
+  50   3                              LCD1602_write_com(0x80+0x40);
+  51   3                              LCD1602_write_data(Weight_Shiwu/1000 + 0x30);
+  52   3                              LCD1602_write_data('.');
+  53   3                              LCD1602_write_data(Weight_Shiwu%1000/100 + 0x30);
+  54   3                              LCD1602_write_data(Weight_Shiwu%100/10 + 0x30);
+  55   3                              LCD1602_write_data(Weight_Shiwu%10 + 0x30);
+C51 COMPILER V9.00   MAIN                                                                  10/14/2013 10:38:54 PAGE 2   
+
+  56   3                      }
+  57   2      
+  58   2                      KEY_NUM = KEY_Scan();
+  59   2      
+  60   2                      if( KEY_NUM != 0x55)                    //当返回的不是初值时候，确认按键按下。
+  61   2                      {
+  62   3                              if(KEY_NUM == 16)                       //数字A键，去皮功能
+  63   3                              {
+  64   4                                      Get_Maopi();                    //去皮  
+  65   4                              }
+  66   3      
+  67   3                              if(KEY_NUM == 15)                       //数字B键清除键，二次测量
+  68   3                              {
+  69   4                                      goto loop;      
+  70   4                              }
+  71   3      
+  72   3                              if(KEY_NUM == 12)                       //数字C输入单价错误时返回上一步
+  73   3                              {
+  74   4                                      Price_Count--;
+  75   4                                      if( Price_Count < 0)
+  76   4                                      {
+  77   5                                              Price_Count = 0;
+  78   5                                      }
+  79   4                                      
+  80   4                                      Price_Buffer[Price_Count] = 0;                     //清除上一个输入的数据
+  81   4      
+  82   4                                      switch(Price_Count)
+  83   4                                      {
+  84   5                                              case 0:
+  85   5                                                              LCD1602_write_com(0x80+0x40+6);
+  86   5                                                              LCD1602_write_data(' ');
+  87   5                                                              break;
+  88   5                                              case 1:
+  89   5                                                              LCD1602_write_com(0x80+0x40+7);
+  90   5                                                              LCD1602_write_data(' ');
+  91   5                                                              break;
+  92   5                                              case 2:
+  93   5                                                              LCD1602_write_com(0x80+0x40+9);
+  94   5                                                              LCD1602_write_data(' ');
+  95   5                                                              break;
+  96   5                                              default : break;
+  97   5                                      }       
+  98   4                              }
+  99   3      
+ 100   3                              if(KEY_NUM == 13)                       //数字D键，计算总价
+ 101   3                              {
+ 102   4                                      Money = Price_Buffer[0] * 100 + Price_Buffer[1] * 10 + Price_Buffer[2]; 
+ 103   4                                      Money = Money * Weight_Shiwu / 1000;
+ 104   4                                      LCD1602_write_com(0x80+0x40+11);
+ 105   4                                      LCD1602_write_data(Money/1000 + 0x30);                  
+ 106   4                                      LCD1602_write_data(Money%1000/100 + 0x30);
+ 107   4                                      LCD1602_write_data(Money%100/10 + 0x30);
+ 108   4                                      LCD1602_write_data('.');
+ 109   4                                      LCD1602_write_data(Money%10 + 0x30);
+ 110   4                                      
+ 111   4                                      Flag_OK = 1;                                    
+ 112   4                              }
+ 113   3      
+ 114   3                              if(KEY_NUM >= 0 && KEY_NUM <= 9)                                          //显示输入的价格值
+ 115   3                              {
+ 116   4                                      Price_Buffer[Price_Count] = KEY_NUM;
+ 117   4              
+C51 COMPILER V9.00   MAIN                                                                  10/14/2013 10:38:54 PAGE 3   
+
+ 118   4                                      switch(Price_Count)
+ 119   4                                      {
+ 120   5                                              case 0:
+ 121   5                                                              LCD1602_write_com(0x80+0x40+6);
+ 122   5                                                              LCD1602_write_data(Price_Buffer[0] + 0x30);
+ 123   5                                                              break;
+ 124   5                                              case 1:
+ 125   5                                                              LCD1602_write_com(0x80+0x40+7);
+ 126   5                                                              LCD1602_write_data(Price_Buffer[1] + 0x30);
+ 127   5                                                              break;
+ 128   5                                              case 2:
+ 129   5                                                              LCD1602_write_com(0x80+0x40+9);
+ 130   5                                                              LCD1602_write_data(Price_Buffer[2] + 0x30);
+ 131   5                                                              break;
+ 132   5                                              default : break;
+ 133   5                                      }
+ 134   4              
+ 135   4                                      Price_Count++;
+ 136   4              
+ 137   4                                      if( Price_Count >= 3)
+ 138   4                                      {
+ 139   5                                              Price_Count = 3;
+ 140   5                                      }
+ 141   4                              }
+ 142   3      
+ 143   3                      }
+ 144   2      
+ 145   2              }
+ 146   1      }
+ 147          
+ 148          //****************************************************
+ 149          //矩阵键盘扫描
+ 150          //****************************************************
+ 151          unsigned char KEY_Scan()
+ 152          {
+ 153   1              unsigned char temp = 0;
+ 154   1              unsigned char com = 0x55 , com1 = 0 , com2 = 0;
+ 155   1              P3=0xf0;
+ 156   1              if(P3!=0xf0)
+ 157   1              {
+ 158   2                      com1=P3;
+ 159   2                      P3=0x0f;
+ 160   2                      com2=P3;        
+ 161   2              }
+ 162   1              P3=0xf0;
+ 163   1          while(P3!=0xf0);      
+ 164   1              temp=com1|com2;
+ 165   1              if(temp==0xee)com=1;//数字1
+ 166   1              if(temp==0xed)com=4;//数字4
+ 167   1              if(temp==0xeb)com=7;//数字7
+ 168   1              if(temp==0xe7)com=11;//备用键*号键
+ 169   1              if(temp==0xd7)com=0;//数字0
+ 170   1              if(temp==0xb7)com=14;//备用键*号键
+ 171   1              
+ 172   1      
+ 173   1              if(temp==0xde)com=2; //数字2
+ 174   1              if(temp==0xdd)com=5; //数字5
+ 175   1              if(temp==0xdb)com=8;//数字8
+ 176   1      
+ 177   1              if(temp==0xbe)com=3;//数字3
+ 178   1              if(temp==0xbd)com=6; //数字6
+ 179   1              if(temp==0xbb)com=9;//数字9
+C51 COMPILER V9.00   MAIN                                                                  10/14/2013 10:38:54 PAGE 4   
+
+ 180   1      
+ 181   1              if(temp==0x7e)com=16;//数字A键，去皮功能         
+ 182   1              if(temp==0x7d)com=15;//数字B键清除键，二次测量
+ 183   1              if(temp==0x7b)com=12;//数字C输入单价错误时返回上一步
+ 184   1              if(temp==0x77)com=13;//数字D键，计算总价         
+ 185   1              return(com);
+ 186   1      }
+ 187          
+ 188          //****************************************************
+ 189          //称重
+ 190          //****************************************************
+ 191          void Get_Weight()
+ 192          {
+ 193   1              HX711_Buffer = HX711_Read();
+ 194   1              HX711_Buffer = HX711_Buffer/100;
+ 195   1              if(HX711_Buffer > Weight_Maopi)                 
+ 196   1              {
+ 197   2                      Weight_Shiwu = HX711_Buffer;
+ 198   2                      Weight_Shiwu = Weight_Shiwu - Weight_Maopi;                             //获取实物的AD采样数值。
+ 199   2              
+ 200   2                      Weight_Shiwu = (unsigned int)((float)Weight_Shiwu/4.22+0.05);   //计算实物的实际重量
+ 201   2                                                                                                                                                      //因为不同的传感器特性曲线不一样，因此，每一个传感器需要矫正这里的4.30这个除数。
+ 202   2                                                                                                                                                      //当发现测试出来的重量偏大时，增加该数值。
+ 203   2                                                                                                                                                      //如果测试出来的重量偏小时，减小改数值。
+ 204   2                                                                                                                                                      //该数值一般在4.0-5.0之间。因传感器不同而定。
+ 205   2                                                                                                                                                      //+0.05是为了四舍五入百分位
+ 206   2                      Buzzer = 1;                             //关闭警报
+ 207   2              }
+ 208   1      //      else if(HX711_Buffer < Weight_Maopi - 30)
+ 209   1      //      {
+ 210   1      //              Buzzer = 0;                             //负重量报警
+ 211   1      //      }
+ 212   1      //      else if(HX711_Buffer > Weight_Maopi + 24970)            //大于5Kg的最大量程，报警       
+ 213   1      //      {
+ 214   1      //              Buzzer = 0;
+ 215   1      //      }
+ 216   1      
+ 217   1              if(Weight_Shiwu > 5000 || HX711_Buffer < Weight_Maopi - 30)
+ 218   1              {
+ 219   2                      Buzzer = 0;     
+ 220   2              }
+ 221   1              else
+ 222   1              {
+ 223   2                      Buzzer = 1;
+ 224   2              }
+ 225   1      
+ 226   1              
+ 227   1      }
+ 228          
+ 229          //****************************************************
+ 230          //获取毛皮重量
+ 231          //****************************************************
+ 232          void Get_Maopi()
+ 233          {
+ 234   1              HX711_Buffer = HX711_Read();
+ 235   1              Weight_Maopi = HX711_Buffer/100;                
+ 236   1      } 
+ 237          
+ 238          //****************************************************
+ 239          //MS延时函数(12M晶振下测试)
+ 240          //****************************************************
+ 241          void Delay_ms(unsigned int n)
+C51 COMPILER V9.00   MAIN                                                                  10/14/2013 10:38:54 PAGE 5   
+
+ 242          {
+ 243   1              unsigned int  i,j;
+ 244   1              for(i=0;i<n;i++)
+ 245   1                      for(j=0;j<123;j++);
+ 246   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    995    ----
+   CONSTANT SIZE    =     51    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     21    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
